@@ -1,20 +1,13 @@
 import json
 
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiohttp import BasicAuth
-
-from env_loading import load_env_variable
 from aiogram import Bot
 from aiogram import Dispatcher
 from aiogram.enums import ParseMode
 
-
-# hosting specification, login and password don't matter
-auth = BasicAuth(login='login', password='password')
-session = AiohttpSession(proxy=('http://proxy.server:3128', auth))
+from env_loading import load_env_variable
 
 BOT_TOKEN = load_env_variable("BOT_TOKEN")
-bot = Bot(token=BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)  # remove the session along with the auth
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
 # region bot_config.json
