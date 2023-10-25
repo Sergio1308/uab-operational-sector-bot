@@ -41,10 +41,11 @@ async def on_join_group_without_permission(event: ChatMemberUpdated):
 
 
 # Bot gets LEFT status instead of KICKED when group admin kicks him from group, so just check if the user is in the
-# list of admins (has permission)
+# list of admins (has permission) using chat member filter
 @group_router.my_chat_member(ChatMemberUpdatedFilter(LEAVE_TRANSITION), IsAdmin())
 async def on_kicked_from_group(event: ChatMemberUpdated):
-    update_group_chat_id(None)
+    if event.chat.id == get_group_chat_id():
+        update_group_chat_id(None)
     logging.warning(f'Bot was kicked from the {event.chat.type} with id={event.chat.id} '
                     f'by admin with id={event.from_user.id} and username={event.from_user.username}!'
                     f'\nFull chat info=[{event.chat}]\n')
