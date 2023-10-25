@@ -1,4 +1,7 @@
+import logging
+
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
@@ -37,8 +40,21 @@ async def handle_hide_application(callback: CallbackQuery, state: FSMContext) ->
 
 @callback_router.callback_query(F.data == 'delete_msg_application')
 async def handle_hide_application(callback: CallbackQuery) -> None:
-    await callback.message.delete()
-    await callback.answer('Видалено')
+    user = callback.from_user
+    user_data = f"[id={user.id} username={user.username}]"
+    try:
+        await callback.message.delete()
+    except TelegramBadRequest:  # if trying to delete an old message
+        logging.warning(f"User {user_data} tried to delete an old message, but got "
+                        f"TelegramBadRequest exception. Message text was edited.")
+        await callback.message.edit_text("Видалено")
+    except TelegramForbiddenError:
+        logging.warning(f"User {user_data} tried to delete an old message, but got "
+                        f"TelegramForbiddenError exception. Bot is not a member of the group chat.")
+        await callback.answer()
+    else:
+        logging.info(f"User {user_data} successfully deleted the application "
+                     f"[{' '.join(callback.message.text.split())}]")
 
 
 @callback_router.callback_query()
