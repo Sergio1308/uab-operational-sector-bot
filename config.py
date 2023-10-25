@@ -9,11 +9,12 @@ from aiogram import Dispatcher
 from aiogram.enums import ParseMode
 
 
+# hosting specification, login and password don't matter
 auth = BasicAuth(login='login', password='password')
 session = AiohttpSession(proxy=('http://proxy.server:3128', auth))
 
 BOT_TOKEN = load_env_variable("BOT_TOKEN")
-bot = Bot(token=BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
+bot = Bot(token=BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)  # remove the session along with the auth
 dp = Dispatcher()
 
 # region bot_config.json
