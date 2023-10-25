@@ -7,10 +7,18 @@ from config import dp, bot, group_chat_id_is_None
 
 
 async def main():
+    logFormat = "%(asctime)s [%(levelname)s] [%(threadName)s] - %(name)s - %(message)s"
     logging.basicConfig(
+        filename="logs",
+        filemode='a',
+        encoding='utf-8',
         level=logging.DEBUG,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        stream=sys.stdout)
+        format=logFormat,
+        datefmt='%Y-%m-%d %H:%M:%S')
+    consoleHandler = logging.StreamHandler(sys.stdout)
+    consoleHandler.setFormatter(logging.Formatter(logFormat))
+    logging.getLogger().addHandler(consoleHandler)
+
     dp.include_routers(message_router, callback_router, group_router)
     if group_chat_id_is_None():
         logging.warning('Administrator did not add this bot to the group chat for receiving applications!')
