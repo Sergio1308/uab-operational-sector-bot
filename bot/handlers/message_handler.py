@@ -1,18 +1,18 @@
 import logging
 
 from aiogram import Router, F
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramMigrateToChat, TelegramForbiddenError
 from aiogram.filters import Command, ExceptionTypeFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ErrorEvent
 from aiogram.utils.markdown import hbold
 
+from bot.filters import IsAdmin
 from bot.inlinekeyboard import create_back_to_new_app_markup, create_back_to_room_markup, \
     create_types_of_appeal_markup, create_starting_new_app_markup, delete_message_app_group_markup
 from bot.models import Application
 from bot.states import Form
-from bot.filters import IsAdmin
-from config import bot, get_group_chat_id
+from config import bot, get_group_chat_id, update_group_chat_id
 
 message_router = Router()
 message_router.message.filter(F.chat.type == "private")
@@ -66,6 +66,7 @@ async def process_phone_number(message: Message, state: FSMContext) -> None:
 @message_router.message(Form.message)
 async def process_appeal_message(message: Message, state: FSMContext) -> None:
     await state.update_data(message=message.text)
+    user = message.from_user
     try:
         user_data = await state.get_data()
         app = Application(
@@ -75,28 +76,41 @@ async def process_appeal_message(message: Message, state: FSMContext) -> None:
         await state.update_data(application_model=app)
         group_chat_id = get_group_chat_id()
         if group_chat_id:
-            await bot.send_message(
-                group_chat_id,
-                f"Нова заявка за адресою: {hbold(app.address)}"
-                f"\n\nКімната: {hbold(app.cabinet)}"
-                f"\n\nЗаявка від: {hbold(app.full_name)}"
-                f"\n\nКонтактний номер: {hbold(app.contact_number)}"
-                f"\n\nХарактер звернення: {hbold(app.type_of_appeal)}"
-                f"\n\nТекст заявки: '{hbold(app.text_message)}'",
-                reply_markup=delete_message_app_group_markup()
-            )
-            await message.answer(f"Заявка відправлена. Дякую за звернення!",
-                                 reply_markup=create_starting_new_app_markup())
+            await send_application_to_group_chat(message, group_chat_id, app)
         else:
-            logging.warning(f"Failed to send application from user {message.from_user}."
+            logging.warning(f"Failed to send application from user {user.username} id={user.id} ."
                             f"\nAdministrator did not add this bot to the group chat for receiving applications."
-                            f"\nCurrent application: {app}")
+                            f"\nApplication not sent: {app}")
             await message.answer("Не вдалося надіслати заявку. Зв'яжіться з адміністратором, оскільки він не "
                                  "налаштував груповий чат для їх отримання")
+    except TelegramMigrateToChat as err:
+        new_chat_id = err.migrate_to_chat_id
+        update_group_chat_id(new_chat_id)
+        logging.warning(f"Group chat was upgraded to a supergroup chat! Group chat id was changed to {new_chat_id}")
+        user_data = await state.get_data()
+        app = user_data['application_model']
+        await send_application_to_group_chat(message, new_chat_id, app)
     except Exception as err:
-        logging.error(f"Error processing application: {err}")
+        user_data = await state.get_data()
+        logging.error(f"Error when trying to send an application from user @{user.username} id={user.id}.\n{err}"
+                      f"\nApplication not sent: {user_data['application_model']}")
         await message.answer(f"Упс, щось пішло не так! Залиште звернення знову, для цього введiть команду /start")
     await state.clear()
+
+
+async def send_application_to_group_chat(message: Message, chat_id: int, app: Application) -> None:
+    await bot.send_message(
+        chat_id,
+        f"Нова заявка за адресою: {hbold(app.address)}"
+        f"\n\nКімната: {hbold(app.cabinet)}"
+        f"\n\nЗаявка від: {hbold(app.full_name)}"
+        f"\n\nКонтактний номер: {hbold(app.contact_number)}"
+        f"\n\nХарактер звернення: {hbold(app.type_of_appeal)}"
+        f"\n\nТекст заявки: '{hbold(app.text_message)}'",
+        reply_markup=delete_message_app_group_markup()
+    )
+    await message.answer(f"Заявка відправлена. Дякую за звернення!",
+                         reply_markup=create_starting_new_app_markup())
 
 
 @message_router.message(Command("check"), IsAdmin())
@@ -112,8 +126,8 @@ async def check_sending_to_group_chat(message: Message) -> None:
         await bot.send_message(chat_id,
                                'Це тестове повідомлення. Адміністратор/власник бота запросив перевірку, '
                                'щоб дізнатися, куди я надсилатиму заявки.\nЗаявки будуть надсилатися сюди.')
-    except TelegramBadRequest:
-        await message.answer('Помилка! Груповий чат не знайдено, не вдалося вiдправити повiдомлення.'
+    except (TelegramBadRequest, TelegramForbiddenError, TelegramMigrateToChat):
+        await message.answer('Помилка! Не вдалося вiдправити повiдомлення.'
                              '\nДодайте мене в потрібну групу ще раз (якщо я там вже є, '
                              'тоді видаліть і додайте заново)')
 
