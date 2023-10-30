@@ -17,7 +17,7 @@ async def handle_new_application(callback: CallbackQuery, state: FSMContext) -> 
     current_state = await state.get_state()
     if (current_state is None) or (current_state == Form.room):
         await state.set_state(Form.address)
-        await callback.message.delete()
+        await callback.message.delete_reply_markup()
         await callback.message.answer(f"Вітаю!\nВведіть адресу👇:")
     else:
         await callback.answer()
